@@ -1,0 +1,180 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 258 30% 5%;
+  --foreground: 285 20% 98%;
+
+  --card: 260 25% 8%;
+  --card-foreground: 285 20% 98%;
+
+  --popover: 260 25% 8%;
+  --popover-foreground: 285 20% 98%;
+
+  --primary: 264 76% 47%;
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 280 60% 35%;
+  --secondary-foreground: 210 40% 98%;
+
+  --muted: 260 25% 15%;
+  --muted-foreground: 285 20% 65%;
+
+  --accent: 300 50% 55%;
+  --accent-foreground: 210 40% 98%;
+
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 260 25% 15%;
+  --input: 260 25% 12%;
+  --ring: 285 100% 65%;
+
+  --radius: 0.5rem;
+
+  /* Custom Omega Store Colors - Purple Theme */
+  --omega-primary: 264 76% 47%;        /* Morado principal */
+  --omega-secondary: 280 60% 35%;      /* Morado secundario */
+  --omega-accent: 300 50% 55%;         /* Morado claro accent */
+  --omega-neon: 285 100% 65%;          /* Neón morado brillante */
+  --omega-dark: 260 25% 8%;            /* Fondo oscuro morado */
+  --omega-darker: 258 30% 5%;          /* Fondo más oscuro */
+  --tech-glow: 285 100% 70%;           /* Efecto glow */
+}
+
+.dark {
+  --background: 258 30% 5%;
+  --foreground: 285 20% 98%;
+
+  --card: 260 25% 8%;
+  --card-foreground: 285 20% 98%;
+
+  --popover: 260 25% 8%;
+  --popover-foreground: 285 20% 98%;
+
+  --primary: 264 76% 47%;
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 280 60% 35%;
+  --secondary-foreground: 210 40% 98%;
+
+  --muted: 260 25% 15%;
+  --muted-foreground: 285 20% 65%;
+
+  --accent: 300 50% 55%;
+  --accent-foreground: 210 40% 98%;
+
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 260 25% 15%;
+  --input: 260 25% 12%;
+  --ring: 285 100% 65%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .omega-gradient {
+    background: linear-gradient(135deg, hsl(var(--omega-primary)) 0%, hsl(var(--omega-neon)) 100%);
+  }
+  
+  .omega-card {
+    @apply bg-purple-950/50 backdrop-blur-sm border border-purple-800 rounded-lg shadow-lg hover:shadow-purple-500/20 hover:shadow-2xl transition-all duration-300;
+  }
+  
+  .omega-button {
+    @apply bg-gradient-to-r from-purple-600 to-violet-700 hover:from-purple-700 hover:to-violet-800 text-white font-medium px-4 py-2 rounded-md transition-all duration-200 shadow-lg hover:shadow-purple-500/25;
+  }
+  
+  .omega-button-secondary {
+    @apply bg-purple-900 hover:bg-purple-800 text-white font-medium px-4 py-2 rounded-md border border-purple-700 hover:border-purple-600 transition-all duration-200;
+  }
+  
+  .omega-input {
+    @apply bg-purple-950/50 border-purple-700 focus:border-purple-500 focus:ring-purple-500/20 text-white placeholder-purple-400;
+  }
+  
+  .neon-text-primary {
+    @apply text-purple-400 drop-shadow-[0_0_8px_rgb(168,85,247,0.5)];
+  }
+  
+  .neon-text-secondary {
+    @apply text-violet-400 drop-shadow-[0_0_8px_rgb(139,92,246,0.5)];
+  }
+  
+  .neon-text-accent {
+    @apply text-fuchsia-400 drop-shadow-[0_0_8px_rgb(244,114,182,0.5)];
+  }
+  
+  .working-pulse {
+    animation: workingPulse 2s infinite;
+  }
+  
+  @keyframes workingPulse {
+    0%, 100% {
+      box-shadow: 0 0 15px rgba(168, 85, 247, 0.7);
+    }
+    50% {
+      box-shadow: 0 0 25px rgba(168, 85, 247, 0.9);
+    }
+  }
+}
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--omega-darker));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--omega-primary));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--omega-neon) / 0.8);
+}
+
+/* Loading Animation */
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Number Counter Animation */
+.counter-animate {
+  animation: counterUp 1s ease-out forwards;
+}
+
+@keyframes counterUp {
+  from {
+    opacity: 0.5;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

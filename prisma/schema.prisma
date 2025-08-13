@@ -1,0 +1,386 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows", "darwin-arm64"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+enum Role {
+  OWNER
+  ADMIN_GENERAL
+  ENCARGADO_ENTREGAS
+  AT_CLIENTE
+  SOPORTE
+  ENCARGADO_PAGO_MEXICO
+  ENCARGADO_PAGO_PERU
+  ENCARGADO_PAGO_COLOMBIA
+  ENCARGADO_PAGO_ZELLE
+  RECLUTADOR
+  MARKETING
+  DISEÑADOR
+  GESTOR_CONTENIDO
+  FINANZAS
+  CHETADORES
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  COMPLETED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  DELIVERED
+  COMPLETED
+  CANCELLED
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  COMMISSION
+}
+
+// ============= ACCOUNT DELIVERY =============
+
+model AccountDelivery {
+  id                   String    @id @default(cuid())
+  clientName           String
+  clientUser           String
+  clientContact        String
+  productType          String
+  productDetails       String
+  price                Float
+  paymentMethod        String
+  purchaseDate         DateTime
+  deliveryUser         String?
+  deliveryPass         String?
+  deliveryEmail        String?
+  deliveryInstructions String?
+  deliveredAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  createdById          String
+  createdBy            User      @relation(fields: [createdById], references: [id])
+}
+
+// ============= NEXT AUTH =============
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+  oauth_token_secret String?
+  oauth_token        String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id              String    @id @default(cuid())
+  name            String?
+  email           String    @unique
+  emailVerified   DateTime?
+  image           String?
+  password        String?
+  role            Role      @default(SOPORTE)
+  country         String?
+  isActive        Boolean   @default(true)
+  isWorking       Boolean   @default(false)
+  startWorkTime   DateTime?
+  totalHoursToday Float     @default(0)
+  weeklyTarget    Int       @default(40)
+  salary          Float?
+  joinedAt        DateTime  @default(now())
+  lastActiveAt    DateTime  @default(now())
+
+  accounts             Account[]
+  sessions             Session[]
+  assignedTasks        Task[]                @relation("AssignedTasks")
+  createdTasks         Task[]                @relation("CreatedTasks")
+  timeEntries          TimeEntry[]
+  sentMessages         ChatMessage[]         @relation("SentMessages")
+  financialRecords     FinancialRecord[]
+  paymentConfirmations PaymentConfirmation[]
+  orders               Order[]
+  sales                Sale[]
+  salesAsPaidEmployee  Sale[]                @relation("EmpleadoPago")
+  calendarEvents       CalendarEvent[]
+  commissions          Commission[]
+  accountDeliveries    AccountDelivery[]
+
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============= TASK MANAGEMENT =============
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  attachments String       @default("")
+
+  assignedToId String
+  assignedTo   User   @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  createdById  String
+  createdBy    User   @relation("CreatedTasks", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tasks")
+}
+
+// ============= TIME TRACKING =============
+
+model TimeEntry {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  startTime DateTime
+  endTime   DateTime?
+  duration  Float? // in hours
+  date      DateTime  @default(now())
+  notes     String?
+  isActive  Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@map("time_entries")
+}
+
+// ============= FINANCIAL MANAGEMENT =============
+
+model FinancialRecord {
+  id          String          @id @default(cuid())
+  type        TransactionType
+  amount      Float
+  description String
+  category    String?
+  date        DateTime        @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("financial_records")
+}
+
+model Commission {
+  id          String  @id @default(cuid())
+  userId      String
+  user        User    @relation(fields: [userId], references: [id])
+  amount      Float
+  percentage  Float
+  baseAmount  Float
+  description String
+  month       Int
+  year        Int
+  isPaid      Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@map("commissions")
+}
+
+// ============= ORDERS & PAYMENTS =============
+
+model Sale {
+  id    String   @id @default(cuid())
+  fecha DateTime @default(now())
+
+  // Información del cliente
+  cliente  String
+  telefono String?
+  email    String?
+
+  // Información del producto/servicio
+  producto    String
+  descripcion String?
+  cantidad    Int     @default(1)
+
+  // Información financiera
+  precioVenta  Float
+  costoCheto   Float
+  descuento    Float  @default(0)
+  impuestos    Float  @default(0)
+  comisionPago Float
+  pagoEmpleado Float
+  canalVenta   String // Instagram, Web, Discord, etc.
+  ganunciaNeta Float
+  metodoPago   String // efectivo, tarjeta, transferencia, zelle
+
+  // Estado y seguimiento
+  status       OrderStatus @default(PENDING)
+  folio        String?     @unique
+  notasVenta   String?
+  fechaEntrega DateTime?
+
+  // Relaciones
+  atClientId     String?
+  atClient       User?   @relation(fields: [atClientId], references: [id])
+  empleadoPagoId String?
+  empleadoPago   User?   @relation("EmpleadoPago", fields: [empleadoPagoId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  paymentConfirmation PaymentConfirmation?
+
+  @@map("sales")
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  productName  String
+  platform     String
+  accountData  String?
+  customerInfo String?
+  price        Float
+  cost         Float?
+  profit       Float?
+  status       OrderStatus @default(PENDING)
+
+  atClientId String?
+  atClient   User?   @relation(fields: [atClientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  paymentConfirmation PaymentConfirmation?
+
+  @@map("orders")
+}
+
+model PaymentConfirmation {
+  id      String  @id @default(cuid())
+  orderId String? @unique
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  saleId String? @unique
+  sale   Sale?   @relation(fields: [saleId], references: [id])
+
+  proofImage    String // URL to payment proof
+  amount        Float
+  paymentMethod String
+  status        PaymentStatus @default(PENDING)
+  notes         String?
+
+  // Nuevos campos
+  communicationMethod String? // Medio por donde se comunicó (WhatsApp, Telegram, etc.)
+  managerPercentage   Float? // Porcentaje que se queda el encargado
+  clientName          String? // Nombre del cliente
+  productName         String? // Nombre del producto
+
+  uploadedById String
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+
+  reviewedAt  DateTime?
+  reviewNotes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payment_confirmations")
+}
+
+// ============= CHAT SYSTEM =============
+
+model ChatGroup {
+  id           String  @id @default(cuid())
+  name         String
+  description  String?
+  isGeneral    Boolean @default(false)
+  allowedRoles String  @default("")
+
+  messages ChatMessage[]
+
+  createdAt DateTime @default(now())
+
+  @@map("chat_groups")
+}
+
+model ChatMessage {
+  id          String @id @default(cuid())
+  content     String
+  attachments String @default("")
+
+  groupId String
+  group   ChatGroup @relation(fields: [groupId], references: [id])
+
+  senderId String
+  sender   User   @relation("SentMessages", fields: [senderId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("chat_messages")
+}
+
+// ============= CALENDAR =============
+
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  allDay      Boolean  @default(false)
+  eventType   String // meeting, holiday, deadline, etc
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("calendar_events")
+}
