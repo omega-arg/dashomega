@@ -1,4 +1,4 @@
-# 🎮 Omega Store Dashboard
+
 
 Dashboard administrativo completo para gestión de gaming services con sistema de chetadores, empleados, finanzas y más.
 
