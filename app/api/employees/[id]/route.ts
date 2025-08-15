@@ -9,8 +9,26 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get user ID from session or fallback to database lookup
+    let userId = session.user.id;
+    
+    if (!userId) {
+      console.log('User ID not in session, searching in database by email...');
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email! },
+        select: { id: true }
+      });
+      
+      if (!user) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+      
+      userId = user.id;
+      console.log('Found user ID in database:', userId);
     }
 
     const employee = await prisma.user.findUnique({
@@ -83,8 +101,26 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get user ID from session or fallback to database lookup
+    let userId = session.user.id;
+    
+    if (!userId) {
+      console.log('User ID not in session, searching in database by email...');
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email! },
+        select: { id: true }
+      });
+      
+      if (!user) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+      
+      userId = user.id;
+      console.log('Found user ID in database:', userId);
     }
 
     // Check permissions
@@ -157,8 +193,29 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    console.log('Session user ID:', session.user.id);
+    console.log('Session user role:', session.user.role);
+
+    // Get user ID from session or fallback to database lookup
+    let userId = session.user.id;
+    
+    if (!userId) {
+      console.log('User ID not in session, searching in database by email...');
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email! },
+        select: { id: true, role: true }
+      });
+      
+      if (!user) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+      
+      userId = user.id;
+      console.log('Found user ID in database:', userId);
     }
 
     // Check permissions (solo OWNER puede eliminar)
@@ -167,7 +224,7 @@ export async function DELETE(
     }
 
     // No permitir que se elimine a sí mismo
-    if (params.id === session.user.id) {
+    if (params.id === userId) {
       return NextResponse.json({ error: "No puedes eliminarte a ti mismo" }, { status: 400 });
     }
 

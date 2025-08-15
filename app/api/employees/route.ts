@@ -31,6 +31,9 @@ export async function GET() {
     }
 
     const employees = await prisma.user.findMany({
+      where: {
+        isActive: true  // Solo mostrar empleados activos
+      },
       select: {
         id: true,
         name: true,
@@ -74,8 +77,26 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Get user ID from session or fallback to database lookup
+    let userId = session.user.id;
+    
+    if (!userId) {
+      console.log('User ID not in session, searching in database by email...');
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email! },
+        select: { id: true }
+      });
+      
+      if (!user) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+      
+      userId = user.id;
+      console.log('Found user ID in database:', userId);
     }
 
     // Check permissions

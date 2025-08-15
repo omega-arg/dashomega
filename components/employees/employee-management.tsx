@@ -204,6 +204,7 @@ export default function EmployeeManagement({ userRole }: EmployeeManagementProps
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    password: '',
     role: '',
     country: '',
     salary: '',
@@ -254,10 +255,10 @@ export default function EmployeeManagement({ userRole }: EmployeeManagementProps
   const handleCreateEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.email || !formData.role) {
+    if (!formData.name || !formData.email || !formData.password || !formData.role) {
       toast({
         title: "Error",
-        description: "Por favor completa todos los campos requeridos",
+        description: "Por favor completa todos los campos requeridos (nombre, email, contraseña y rol)",
         variant: "destructive",
       });
       return;
@@ -282,6 +283,7 @@ export default function EmployeeManagement({ userRole }: EmployeeManagementProps
         setFormData({
           name: '',
           email: '',
+          password: '',
           role: '',
           country: '',
           salary: '',
@@ -379,6 +381,42 @@ export default function EmployeeManagement({ userRole }: EmployeeManagementProps
       });
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  const handleDeleteEmployee = async (employee: Employee) => {
+    if (!confirm(`¿Estás seguro de que quieres eliminar a ${employee.name}? Esta acción desactivará al empleado.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/employees/${employee.id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Éxito",
+          description: "Empleado eliminado exitosamente",
+        });
+        setSelectedEmployee(null);
+        // Recargar la lista de empleados
+        await loadEmployees();
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Error",
+          description: errorData.error || "Error al eliminar empleado",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting employee:', error);
+      toast({
+        title: "Error",
+        description: "Error de conexión al eliminar empleado",
+        variant: "destructive",
+      });
     }
   };
 
@@ -512,6 +550,20 @@ export default function EmployeeManagement({ userRole }: EmployeeManagementProps
                                 required 
                               />
                             </div>
+                          </div>
+                          
+                          <div>
+                            <Label htmlFor="password" className="text-white">Contraseña</Label>
+                            <Input 
+                              id="password" 
+                              type="password" 
+                              value={formData.password}
+                              onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                              className="bg-slate-800/50 border-purple-600/30 text-white" 
+                              placeholder="Contraseña para acceso del empleado"
+                              required 
+                              minLength={6}
+                            />
                           </div>
                           
                           <div className="grid grid-cols-2 gap-4">
@@ -1090,7 +1142,11 @@ export default function EmployeeManagement({ userRole }: EmployeeManagementProps
                     <MessageSquare className="w-4 h-4 mr-2" />
                     Mensaje
                   </Button>
-                  <Button variant="outline" className="flex-1 text-red-400 border-red-600/50 hover:bg-red-900/20">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1 text-red-400 border-red-600/50 hover:bg-red-900/20"
+                    onClick={() => selectedEmployee && handleDeleteEmployee(selectedEmployee)}
+                  >
                     <Trash2 className="w-4 h-4 mr-2" />
                     Eliminar
                   </Button>
