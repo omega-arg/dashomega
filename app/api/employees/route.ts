@@ -10,8 +10,24 @@ export async function GET() {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get user ID from session or fallback to database lookup
+    let userId = session.user.id;
+    
+    if (!userId) {
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email! },
+        select: { id: true }
+      });
+      
+      if (!user) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+      
+      userId = user.id;
     }
 
     const employees = await prisma.user.findMany({

@@ -9,15 +9,37 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    console.log('Session user ID:', session.user.id);
+    console.log('Full session object:', JSON.stringify(session, null, 2));
+
     const { isWorking } = await request.json();
-    console.log('Toggle work status for user:', session.user.id, 'isWorking:', isWorking);
+    
+    // Get user ID from session or fallback to database lookup
+    let userId = session.user.id;
+    
+    if (!userId) {
+      console.log('User ID not in session, searching in database by email...');
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email! },
+        select: { id: true }
+      });
+      
+      if (!user) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+      
+      userId = user.id;
+      console.log('Found user ID in database:', userId);
+    }
+
+    console.log('Toggle work status for user:', userId, 'isWorking:', isWorking);
 
     const currentUser = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: {
         id: true,
         isWorking: true,
@@ -38,7 +60,7 @@ export async function POST(request: NextRequest) {
       const startTime = new Date();
       
       updatedUser = await prisma.user.update({
-        where: { id: session.user.id },
+        where: { id: userId },
         data: {
           isWorking: true,
           startWorkTime: startTime,
@@ -49,14 +71,14 @@ export async function POST(request: NextRequest) {
       // Crear entrada de tiempo
       timeEntry = await prisma.timeEntry.create({
         data: {
-          userId: session.user.id,
+          userId: userId,
           startTime: startTime,
           isActive: true,
           date: startTime
         }
       });
 
-      console.log('Work started for user:', session.user.id, 'at:', startTime);
+      console.log('Work started for user:', userId, 'at:', startTime);
 
     } else if (!isWorking && currentUser.isWorking && currentUser.startWorkTime) {
       // Finalizar trabajo
@@ -65,7 +87,7 @@ export async function POST(request: NextRequest) {
       const duration = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60); // horas
 
       updatedUser = await prisma.user.update({
-        where: { id: session.user.id },
+        where: { id: userId },
         data: {
           isWorking: false,
           startWorkTime: null,
@@ -77,7 +99,7 @@ export async function POST(request: NextRequest) {
       // Actualizar entrada de tiempo activa
       const activeTimeEntry = await prisma.timeEntry.findFirst({
         where: {
-          userId: session.user.id,
+          userId: userId,
           isActive: true
         }
       });
@@ -93,7 +115,7 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      console.log('Work ended for user:', session.user.id, 'duration:', duration);
+      console.log('Work ended for user:', userId, 'duration:', duration);
 
     } else {
       // No hay cambio de estado

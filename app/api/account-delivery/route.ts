@@ -14,25 +14,36 @@ function hasAccountDeliveryAccess(role: string) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || !hasAccountDeliveryAccess(session.user.role)) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-  }
-
+  console.log("🔍 Account Delivery API (Real) - GET called");
+  
   try {
+    const session = await getServerSession(authOptions);
+    console.log("Session in GET:", session?.user?.role);
+    
+    if (!session || !hasAccountDeliveryAccess(session.user.role)) {
+      console.log("Access denied for role:", session?.user?.role);
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
     let deliveries;
     if (session.user.role === 'AT_CLIENTE') {
-      deliveries = await prisma.$queryRaw`
-        SELECT * FROM AccountDelivery 
-        WHERE createdById = ${session.user.id}
-        ORDER BY createdAt DESC
-      `;
+      deliveries = await prisma.accountDelivery.findMany({
+        where: {
+          createdById: session.user.id
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
     } else {
-      deliveries = await prisma.$queryRaw`
-        SELECT * FROM AccountDelivery 
-        ORDER BY createdAt DESC
-      `;
+      deliveries = await prisma.accountDelivery.findMany({
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
     }
+    
+    console.log("Found deliveries:", deliveries.length);
     return NextResponse.json(deliveries);
   } catch (error) {
     console.error("Error fetching deliveries:", error);
@@ -41,31 +52,65 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || !hasAccountDeliveryAccess(session.user.role)) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-  }
+  console.log("🔍 Account Delivery API (Real) - POST called");
   
   try {
+    const session = await getServerSession(authOptions);
+    console.log("Session in POST:", session?.user?.role);
+    console.log("Session user ID:", session?.user?.id);
+    console.log("Full session object:", JSON.stringify(session, null, 2));
+    
+    if (!session || !hasAccountDeliveryAccess(session.user.role)) {
+      console.log("Access denied for role:", session?.user?.role);
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+    
     const data = await req.json();
-    const now = new Date().toISOString();
+    console.log("POST data:", data);
     
-    const delivery = await prisma.$executeRaw`
-      INSERT INTO AccountDelivery (
-        id, clientName, clientUser, clientContact, productType, 
-        productDetails, price, paymentMethod, purchaseDate,
-        deliveryUser, deliveryPass, deliveryEmail, deliveryInstructions,
-        createdAt, updatedAt, createdById
-      ) VALUES (
-        ${crypto.randomUUID()}, ${data.clientName}, ${data.clientUser}, ${data.clientContact}, 
-        ${data.productType}, ${data.productDetails}, ${data.price}, ${data.paymentMethod}, 
-        ${data.purchaseDate || now}, ${data.deliveryUser || ""}, ${data.deliveryPass || ""}, 
-        ${data.deliveryEmail || ""}, ${data.deliveryInstructions || ""}, 
-        ${now}, ${now}, ${session.user.id}
-      )
-    `;
+    // Validaciones
+    if (!data.clientName || !data.productType) {
+      return NextResponse.json({ error: 'Nombre del cliente y tipo de producto son requeridos' }, { status: 400 });
+    }
     
-    return NextResponse.json({ success: true, id: delivery });
+    // Si no tenemos el ID en la sesión, lo buscamos en la base de datos
+    let userId = session.user.id;
+    if (!userId) {
+      console.log("User ID not in session, searching in database by email...");
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email! },
+        select: { id: true }
+      });
+      
+      if (!user) {
+        console.log("Could not find user in database");
+        return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+      }
+      
+      userId = user.id;
+      console.log("Found user ID in database:", userId);
+    }
+
+    const delivery = await prisma.accountDelivery.create({
+      data: {
+        clientName: data.clientName,
+        clientUser: data.clientUser || "",
+        clientContact: data.clientContact || "",
+        productType: data.productType,
+        productDetails: data.productDetails || "",
+        price: parseFloat(data.price) || 0,
+        paymentMethod: data.paymentMethod || "",
+        purchaseDate: data.purchaseDate || new Date(),
+        deliveryUser: data.deliveryUser || "",
+        deliveryPass: data.deliveryPass || "",
+        deliveryEmail: data.deliveryEmail || "",
+        deliveryInstructions: data.deliveryInstructions || "",
+        createdById: userId
+      }
+    });
+    
+    console.log("Created delivery:", delivery);
+    return NextResponse.json({ success: true, id: delivery.id, delivery });
   } catch (error) {
     console.error("Error creating delivery:", error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
@@ -73,44 +118,45 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || !hasAccountDeliveryAccess(session.user.role)) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-  }
+  console.log("🔍 Account Delivery API (Real) - PUT called");
   
   try {
-    const data = await req.json();
-    console.log("PUT request data:", data);
+    const session = await getServerSession(authOptions);
+    console.log("Session in PUT:", session?.user?.role);
     
-    // Convert deliveredAt to Date if it comes as string
-    let deliveredAt = null;
-    if (data.deliveredAt) {
-      deliveredAt = typeof data.deliveredAt === 'string' ? data.deliveredAt : data.deliveredAt.toISOString();
+    if (!session || !hasAccountDeliveryAccess(session.user.role)) {
+      console.log("Access denied for role:", session?.user?.role);
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
     
-    const now = new Date().toISOString();
+    const data = await req.json();
+    console.log("PUT data:", data);
     
-    await prisma.$executeRaw`
-      UPDATE AccountDelivery 
-      SET 
-        clientName = ${data.clientName || ""},
-        clientUser = ${data.clientUser || ""},
-        clientContact = ${data.clientContact || ""},
-        productType = ${data.productType || ""},
-        productDetails = ${data.productDetails || ""},
-        price = ${data.price || 0},
-        paymentMethod = ${data.paymentMethod || ""},
-        deliveryUser = ${data.deliveryUser || ""},
-        deliveryPass = ${data.deliveryPass || ""},
-        deliveryEmail = ${data.deliveryEmail || ""},
-        deliveryInstructions = ${data.deliveryInstructions || ""},
-        deliveredAt = ${deliveredAt},
-        updatedAt = ${now}
-      WHERE id = ${data.id}
-    `;
+    if (!data.id) {
+      return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+    }
     
-    console.log("Updated delivery successfully");
-    return NextResponse.json({ success: true });
+    const updatedDelivery = await prisma.accountDelivery.update({
+      where: { id: data.id },
+      data: {
+        clientName: data.clientName,
+        clientUser: data.clientUser || "",
+        clientContact: data.clientContact || "",
+        productType: data.productType,
+        productDetails: data.productDetails || "",
+        price: parseFloat(data.price) || 0,
+        paymentMethod: data.paymentMethod || "",
+        deliveryUser: data.deliveryUser || "",
+        deliveryPass: data.deliveryPass || "",
+        deliveryEmail: data.deliveryEmail || "",
+        deliveryInstructions: data.deliveryInstructions || "",
+        deliveredAt: data.deliveredAt ? new Date(data.deliveredAt) : null,
+        updatedAt: new Date()
+      }
+    });
+    
+    console.log("Updated delivery:", updatedDelivery);
+    return NextResponse.json({ success: true, delivery: updatedDelivery });
   } catch (error) {
     console.error("Error updating delivery:", error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
@@ -118,14 +164,29 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || !hasAccountDeliveryAccess(session.user.role)) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-  }
+  console.log("🔍 Account Delivery API (Real) - DELETE called");
   
   try {
-    const { id } = await req.json();
-    await prisma.$executeRaw`DELETE FROM AccountDelivery WHERE id = ${id}`;
+    const session = await getServerSession(authOptions);
+    console.log("Session in DELETE:", session?.user?.role);
+    
+    if (!session || !hasAccountDeliveryAccess(session.user.role)) {
+      console.log("Access denied for role:", session?.user?.role);
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+    
+    const data = await req.json();
+    console.log("DELETE data:", data);
+    
+    if (!data.id) {
+      return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+    }
+    
+    const deletedDelivery = await prisma.accountDelivery.delete({
+      where: { id: data.id }
+    });
+    
+    console.log("Deleted delivery:", deletedDelivery);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting delivery:", error);

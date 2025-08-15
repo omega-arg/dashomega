@@ -45,6 +45,9 @@ export default function AccountDeliveryPage() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
+  const [useMockAPI, setUseMockAPI] = useState(false); // Usar producción (Neon) por defecto
+  
+  const apiEndpoint = useMockAPI ? "/api/account-delivery-mock" : "/api/account-delivery";
   
   const [formData, setFormData] = useState({
     clientName: "",
@@ -63,16 +66,15 @@ export default function AccountDeliveryPage() {
   useEffect(() => {
     if (status === "loading") return;
     
-    // Temporal: permitir acceso sin autenticación para probar
     console.log("Session status:", status);
     console.log("Session data:", session);
     
-    if (!session?.user) {
-      console.log("No session, allowing temporary access for testing");
-      // Comentado temporalmente para probar
-      // setError("Debes iniciar sesión para acceder a esta sección.");
-      // setLoading(false);
-      // return;
+    // Temporal: permitir acceso directo para OWNER
+    if (status === "unauthenticated") {
+      // Mostrar mensaje para iniciar sesión
+      setError("🔐 Debes iniciar sesión para acceder a esta sección.");
+      setLoading(false);
+      return;
     }
     
     if (session?.user) {
@@ -80,24 +82,36 @@ export default function AccountDeliveryPage() {
       console.log("Allowed roles:", allowedRoles);
       
       if (!allowedRoles.includes(session.user.role)) {
-        setError(`No tienes acceso a esta sección. Tu rol: ${session.user.role}`);
+        setError(`No tienes acceso a esta sección. Tu rol: ${session.user.role}. Necesitas: ${allowedRoles.join(", ")}`);
         setLoading(false);
         return;
       }
     }
     
     fetchDeliveries();
-  }, [session, status]);
+  }, [session, status, apiEndpoint]); // Re-fetch when API endpoint changes
 
   const fetchDeliveries = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/account-delivery");
-      if (!res.ok) throw new Error("Error al cargar entregas");
+      console.log("🔍 Fetching deliveries from:", apiEndpoint);
+      const res = await fetch(apiEndpoint);
+      
+      console.log("🔍 Fetch response status:", res.status);
+      
+      if (!res.ok) {
+        throw new Error(`Error ${res.status}: ${res.statusText}`);
+      }
+      
       const data = await res.json();
-      setDeliveries(data);
+      console.log("🔍 Fetched deliveries:", data);
+      
+      setDeliveries(Array.isArray(data) ? data : []);
+      setError(""); // Limpiar errores previos
     } catch (e) {
-      setError("No se pudieron cargar las entregas");
+      console.error("❌ Error fetching deliveries:", e);
+      setError(`Error al cargar entregas: ${e instanceof Error ? e.message : 'Error desconocido'}`);
+      setDeliveries([]); // Mostrar interfaz vacía
     } finally {
       setLoading(false);
     }
@@ -121,24 +135,54 @@ export default function AccountDeliveryPage() {
 
   const handleCreate = async () => {
     try {
-      const res = await fetch("/api/account-delivery", {
+      console.log("🔍 Creating delivery with data:", formData);
+      
+      // Validación en el frontend
+      if (!formData.clientName.trim()) {
+        toast({ title: "El nombre del cliente es requerido", variant: "destructive" });
+        return;
+      }
+      
+      if (!formData.productType.trim()) {
+        toast({ title: "El tipo de producto es requerido", variant: "destructive" });
+        return;
+      }
+
+      const payload = {
+        ...formData,
+        price: parseFloat(formData.price) || 0,
+        purchaseDate: new Date().toISOString(),
+      };
+
+      console.log("🔍 Sending payload:", payload);
+
+      const res = await fetch(apiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          price: parseFloat(formData.price),
-          purchaseDate: new Date().toISOString(),
-        }),
+        body: JSON.stringify(payload),
       });
       
-      if (!res.ok) throw new Error("Error al crear entrega");
+      console.log("🔍 Response status:", res.status);
       
-      toast({ title: "Entrega creada exitosamente" });
+      const responseData = await res.json();
+      console.log("🔍 Response data:", responseData);
+      
+      if (!res.ok) {
+        throw new Error(responseData.error || `Error ${res.status}: ${res.statusText}`);
+      }
+      
+      toast({ title: "✅ Entrega creada exitosamente" });
       setShowNewModal(false);
       resetForm();
       fetchDeliveries();
     } catch (error) {
-      toast({ title: "Error al crear entrega", variant: "destructive" });
+      console.error("❌ Error creating delivery:", error);
+      const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+      toast({ 
+        title: "Error al crear entrega", 
+        description: errorMessage,
+        variant: "destructive" 
+      });
     }
   };
 
@@ -146,7 +190,7 @@ export default function AccountDeliveryPage() {
     if (!selectedDelivery) return;
     
     try {
-      const res = await fetch("/api/account-delivery", {
+      const res = await fetch(apiEndpoint, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -173,7 +217,7 @@ export default function AccountDeliveryPage() {
     if (!confirm("¿Estás seguro de eliminar esta entrega? Esta acción no se puede deshacer.")) return;
     
     try {
-      const res = await fetch("/api/account-delivery", {
+      const res = await fetch(apiEndpoint, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
@@ -349,7 +393,22 @@ export default function AccountDeliveryPage() {
           <CardHeader>
             <div className="flex justify-between items-center">
               <CardTitle className="text-white">Lista de Entregas</CardTitle>
-              {canEditDelete && (
+              <div className="flex items-center gap-4">
+                {/* API Mode Toggle */}
+                <div className="flex items-center gap-2">
+                  <Badge variant={useMockAPI ? "secondary" : "default"} className="text-xs">
+                    {useMockAPI ? "Modo Test" : "Producción"}
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setUseMockAPI(!useMockAPI)}
+                    className="text-white border-white/20 hover:bg-white/10"
+                  >
+                    {useMockAPI ? "🔧 Switch to Prod" : "🧪 Switch to Test"}
+                  </Button>
+                </div>
+                {canEditDelete && (
                 <Dialog open={showNewModal} onOpenChange={setShowNewModal}>
                   <DialogTrigger asChild>
                     <Button className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600">
@@ -446,7 +505,8 @@ export default function AccountDeliveryPage() {
                     </div>
                   </DialogContent>
                 </Dialog>
-              )}
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
