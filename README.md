@@ -88,9 +88,7 @@ Ejecuta el script de seed para crear el usuario administrador inicial:
 npm run db:seed
 ```
 
-**Credenciales por defecto:**
-- Email: `owner@omega.com`
-- Password: `omega123`
+
 
 ⚠️ **¡Cambia estas credenciales inmediatamente en producción!**
 
